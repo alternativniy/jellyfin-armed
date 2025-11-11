@@ -29,21 +29,22 @@ jf_ensure_device_id() {
   export JF_DEVICE_ID
 }
 
-jf_headers() {
-  local base="MediaBrowser Client=JARM, Device=JARM, DeviceId=${JF_DEVICE_ID}, Version=1.0.0"
-  local hdr=( -H "X-Emby-Authorization: $base" )
-  if [[ -n "${JELLYFIN_TOKEN:-}" ]]; then hdr+=( -H "X-Emby-Token: $JELLYFIN_TOKEN" ); fi
-  printf '%s\n' "${hdr[@]}"
+jf_build_auth_header() {
+  printf 'Authorization: MediaBrowser Client=JARM, Device=JARM, DeviceId=%s, Version=1.0.0' "${JF_DEVICE_ID}"
 }
 
 jf_get() {
   local path="$1"; shift || true
-  curl -sS -b "${JF_COOKIE_JAR:-}" $(jf_headers) "$@" "http://127.0.0.1:8096$path"
+  local auth_header; auth_header="$(jf_build_auth_header)"
+  local args=(-sS -b "${JF_COOKIE_JAR:-}" -H "$auth_header")
+  curl "${args[@]}" "$@" "http://127.0.0.1:8096$path"
 }
 
 jf_post_json() {
   local path="$1"; local data="$2"; shift 2 || true
-  curl -sS -b "${JF_COOKIE_JAR:-}" -H "Content-Type: application/json" $(jf_headers) -d "$data" -X POST "$@" "http://127.0.0.1:8096$path"
+  local auth_header; auth_header="$(jf_build_auth_header)"
+  local args=(-sS -b "${JF_COOKIE_JAR:-}" -H "$auth_header" -H 'Content-Type: application/json')
+  curl "${args[@]}" -d "$data" -X POST "$@" "http://127.0.0.1:8096$path"
 }
 
 jellyfin_configure() {
@@ -96,22 +97,17 @@ jellyfin_configure() {
 
   # Attempt login and obtain token
   local auth
-  JF_COOKIE_JAR="$MODULE_ROOT/jellyfin_cookies.txt"; rm -f "$JF_COOKIE_JAR" 2>/dev/null || true
+  # Persist cookie jar so subsequent runs can reuse session if still valid
+  JF_COOKIE_JAR="${JARM_DIR:-$HOME/.jarm}/jellyfin_cookies.txt"; rm -f "$JF_COOKIE_JAR" 2>/dev/null || true
   jf_ensure_device_id
-  auth=$(curl -sS -c "$JF_COOKIE_JAR" -H 'Content-Type: application/json' $(jf_headers) -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "$base_url/Users/authenticatebyname" || true)
-  JELLYFIN_TOKEN=$(echo "$auth" | grep -oE '"AccessToken":"[^"]+"' | sed -E 's/.*:"([^"]+)"/\1/' || true)
-  # Ensure SID cookie present (not strictly fatal if missing but improves compatibility)
+  local auth_header; auth_header="$(jf_build_auth_header)"
+  auth=$(curl -sS -c "$JF_COOKIE_JAR" -H "$auth_header" -H 'Content-Type: application/json' -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "$base_url/emby/Users/AuthenticateByName" || true)
+  # Ensure SID/session cookie present; treat absence as failed auth
   if ! grep -q 'embyserver_' "$JF_COOKIE_JAR" 2>/dev/null && ! grep -q 'SID' "$JF_COOKIE_JAR" 2>/dev/null; then
-    log "[jellyfin] warning: SID cookie not found; some endpoints may fail"
-  fi
-  if [[ -z "$JELLYFIN_TOKEN" ]]; then
-    log "[jellyfin] authentication failed with provided credentials; aborting configuration"
+    log "[jellyfin] authentication failed (no session cookie set); aborting configuration"
     return 0
   fi
-  export JELLYFIN_TOKEN
-  printf '%s\n' "$JELLYFIN_TOKEN" > "${JARM_DIR:-$HOME/.jarm}/jellyfin_token.txt" 2>/dev/null || true
-  chmod 600 "${JARM_DIR:-$HOME/.jarm}/jellyfin_token.txt" 2>/dev/null || true
-  log "[jellyfin] obtained token and stored"
+  log "[jellyfin] authenticated and session cookie stored"
 
   # 2b. Skip locale/language configuration; user completes initial wizard themselves
 
