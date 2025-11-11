@@ -26,8 +26,11 @@ prompt_var() { # name label [default]
   local current="${!name-}"
   local shown="$current"
   if [[ -z "$shown" && -n "$def" ]]; then shown="$def"; fi
+  # In non-interactive mode, auto-apply default if provided
   if [[ "${RUN_NONINTERACTIVE:-0}" == "1" ]]; then
-    if [[ -z "${!name-}" ]]; then err "Missing required variable: $name"; exit 1; fi
+    if [[ -z "${!name-}" ]]; then
+      if [[ -n "$def" ]]; then export "$name"="$def"; else err "Missing required variable: $name"; exit 1; fi
+    fi
     return 0
   fi
   if [[ -n "$shown" ]]; then
@@ -47,9 +50,14 @@ collect_stack_vars() {
   if [[ -z "${DOWNLOAD_PATH-}" && -f "$env_file" ]]; then DOWNLOAD_PATH=$(grep -E '^DOWNLOAD_PATH=' "$env_file" | sed -E 's/^DOWNLOAD_PATH=//'); fi
   if [[ -z "${TZ-}" && -f "$env_file" ]]; then TZ=$(grep -E '^TZ=' "$env_file" | sed -E 's/^TZ=//'); fi
 
-  prompt_var CONFIG_PATH "Absolute path for CONFIG_PATH (service configs)"
-  prompt_var MEDIA_PATH "Absolute path for MEDIA_PATH (media library)"
-  prompt_var DOWNLOAD_PATH "Absolute path for DOWNLOAD_PATH (downloads)"
+  # Default user-writable paths under JARM_DIR
+  local def_cfg="${JARM_DIR:-$HOME/.jarm}"
+  local def_media="$def_cfg/media"
+  local def_dl="$def_cfg/downloads"
+
+  prompt_var CONFIG_PATH "Absolute path for CONFIG_PATH (service configs)" "$def_cfg"
+  prompt_var MEDIA_PATH "Absolute path for MEDIA_PATH (media library)" "$def_media"
+  prompt_var DOWNLOAD_PATH "Absolute path for DOWNLOAD_PATH (downloads)" "$def_dl"
   prompt_var TZ "Timezone (e.g., Asia/Almaty)" "Asia/Almaty"
   # qBittorrent credentials (used for WebUI/API)
   prompt_var QB_USERNAME "qBittorrent WebUI username" "admin"
@@ -62,6 +70,7 @@ collect_stack_vars() {
 
 ensure_dirs() {
   local dirs=(
+    "$JARM_DIR"
     "$CONFIG_PATH/configs/qbittorrent"
     "$MEDIA_PATH"
     "$DOWNLOAD_PATH"

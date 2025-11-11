@@ -17,7 +17,11 @@ REMOTE_BASE="${REMOTE_BASE:-https://raw.githubusercontent.com/alternativniy/jell
 MODULE_ROOT="$(mktemp -d -t jellyarmed.XXXXXX)"
 WORK_DIR="$PWD"
 # Optional persistent work dir for user artifacts (final compose, etc.)
-JARM_DIR="${JARM_DIR:-/opt/jarm}"
+# Default to a user-writable location to avoid requiring root
+JARM_DIR="${JARM_DIR:-$HOME/.jarm}"
+CONFIG_PATH="${CONFIG_PATH:-$JARM_DIR/configs}"
+DOWNLOAD_PATH="${DOWNLOAD_PATH:-$JARM_DIR/downloads}"
+MEDIA_PATH="${MEDIA_PATH:-$JARM_DIR/media}"
 # Predefine COMPOSE_FILE so sourced compose.sh doesn't fail; will be overwritten by compose_build_compose
 export COMPOSE_FILE="${JARM_DIR}/docker-compose.yaml"
 cleanup() { rm -rf "$MODULE_ROOT" 2>/dev/null || true; }
