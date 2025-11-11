@@ -1,0 +1,24 @@
+services:
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=${TZ}
+      - NVIDIA_VISIBLE_DEVICES=all
+    ports:
+      - 8096:8096
+      - 8920:8920
+      - 7359:7359/udp
+      - 1900:1900/udp
+    volumes:
+      - ${MEDIA_PATH}:/media
+      - ${CONFIG_PATH}/configs/jellyfin:/config
+      - ${CONFIG_PATH}/jellyfin/cache:/cache
+      - ${MEDIA_PATH}/tv:/data/tvshows
+      - ${MEDIA_PATH}/movies:/data/movies
+      - ${DOWNLOAD_PATH}:/data/media_downloads
+    devices:
+      - /dev/dri:/dev/dri
+    restart: unless-stopped
