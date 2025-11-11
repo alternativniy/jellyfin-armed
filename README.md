@@ -1,4 +1,4 @@
-# Jellyfin Armored (JArm)
+# Jellyfin Armed (JArm)
 
 ## DO NOT USE THIS
 
@@ -119,7 +119,7 @@ Project structure:
 
 4) Test locally:
 
-```fish
+```bash
 bash -n scripts/services/<service>.sh
 AUTO_CONFIG=1 COMPOSE_INCLUDE=<service> ./deploy.sh up
 ```

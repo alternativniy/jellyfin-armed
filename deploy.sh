@@ -4,7 +4,14 @@ set -euo pipefail
 # Bootstrap launcher: loads modular scripts, collects variables (interactive),
 # and performs stack operations.
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve script root robustly (works for local file or stdin via pipe)
+if [[ -n "${BASH_SOURCE:-}" && -n "${BASH_SOURCE[0]:-}" ]]; then
+    ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null || pwd)"
+elif [[ -n "${0:-}" && "${0}" != "-" ]]; then
+    ROOT_DIR="$(cd "$(dirname "${0}")" 2>/dev/null || pwd)"
+else
+    ROOT_DIR="$PWD"
+fi
 REMOTE_BASE="${REMOTE_BASE:-https://raw.githubusercontent.com/alternativniy/jellyfin-armed/main}" # Optionally set to https://raw.githubusercontent.com/<org>/<repo>/<branch>
 # Create a temporary module root that will always be cleaned up
 MODULE_ROOT="$(mktemp -d -t jellyarmored.XXXXXX)"
