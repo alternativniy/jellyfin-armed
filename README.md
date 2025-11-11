@@ -26,13 +26,16 @@ Automated Docker stack for Jellyfin and companion services: qBittorrent, Sonarr,
 - Docker Compose (CLI plugin `docker compose` or legacy `docker-compose`)
 - curl
 
-## Quick start (fish shell)
+## Quick start
 
-```fish
-# From repository root
-chmod +x ./deploy.sh
-bash ./deploy.sh up
+You can fetch and run the deploy script directly from GitHub raw without cloning:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alternativniy/jellyfin-armed/main/deploy.sh | bash -s -- up
 ```
+
+The script will automatically download the remaining modules using REMOTE_BASE (default:
+`https://raw.githubusercontent.com/alternativniy/jellyfin-armed/main`).
 
 Common operations:
 
