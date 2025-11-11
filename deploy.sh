@@ -19,7 +19,7 @@ WORK_DIR="$PWD"
 # Optional persistent work dir for user artifacts (final compose, etc.)
 # Default to a user-writable location to avoid requiring root
 JARM_DIR="${JARM_DIR:-$HOME/.jarm}"
-CONFIG_PATH="${CONFIG_PATH:-$JARM_DIR/configs}"
+CONFIG_PATH="${CONFIG_PATH:-$JARM_DIR}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$JARM_DIR/downloads}"
 MEDIA_PATH="${MEDIA_PATH:-$JARM_DIR/media}"
 # Predefine COMPOSE_FILE so sourced compose.sh doesn't fail; will be overwritten by compose_build_compose
@@ -107,7 +107,6 @@ ensure_module scripts/lib/compose.sh
 ensure_module scripts/lib/services.sh
 ensure_module scripts/lib/config.sh
 # compose fragments
-ensure_module compose/base.yaml
 ensure_module compose/qbittorrent.yaml
 ensure_module compose/flaresolverr.yaml
 ensure_module compose/sonarr.yaml
@@ -153,7 +152,7 @@ Environment:
   WAIT_TIMEOUT          Readiness timeout (seconds), default 180
   WAIT_INTERVAL         Poll interval (seconds), default 2
   REMOTE_BASE           Base URL for module downloads (raw GitHub)
-  JARM_DIR              Directory to store final compose and artifacts (default: /opt/jarm)
+    JARM_DIR              Directory to store final compose and artifacts (default: $HOME/.jarm)
 
 Examples:
   ./deploy.sh up

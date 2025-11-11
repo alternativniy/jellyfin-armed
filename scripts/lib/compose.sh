@@ -39,23 +39,26 @@ wait_for_tcp() {
 }
 
 compose_build_compose() {
-  # Build a composed docker-compose.yaml into JARM_DIR (default: /opt/jarm)
-  local target_dir="${JARM_DIR:-/opt/jarm}"
-  sudo mkdir -p "$target_dir" 2>/dev/null || mkdir -p "$target_dir"
+  # Build a composed docker-compose.yaml into JARM_DIR (default: ~/.jarm)
+  local target_dir="${JARM_DIR:-$HOME/.jarm}"
+  mkdir -p "$target_dir"
   local out="$target_dir/docker-compose.yaml"
   : > "$out"
-  # Start with base
-  if [[ -f "$MODULE_ROOT/compose/base.yaml" ]]; then
-    cat "$MODULE_ROOT/compose/base.yaml" >> "$out"
-  fi
-  # Append selected service fragments
+
+  # Write a single header and services root
+  printf "version: '3.8'\n" >> "$out"
+  printf "services:\n" >> "$out"
+
+  # Merge selected service fragments under a single services: key
   for s in "${SERVICES[@]}"; do
     local frag="$MODULE_ROOT/compose/$s.yaml"
     if [[ -f "$frag" ]]; then
-      printf "\n# --- %s ---\n" "$s" >> "$out"
-      cat "$frag" >> "$out"
+      # Strip the leading 'services:' line from fragment and append the rest
+      printf "\n  # --- %s ---\n" "$s" >> "$out"
+      awk 'NR==1 && $1=="services:" {next} {print}' "$frag" >> "$out"
     fi
   done
+
   log "Generated compose at $out"
   # Point COMPOSE_FILE to generated file
   COMPOSE_FILE="$out"

@@ -51,11 +51,12 @@ collect_stack_vars() {
   if [[ -z "${TZ-}" && -f "$env_file" ]]; then TZ=$(grep -E '^TZ=' "$env_file" | sed -E 's/^TZ=//'); fi
 
   # Default user-writable paths under JARM_DIR
-  local def_cfg="${JARM_DIR:-$HOME/.jarm}"
-  local def_media="$def_cfg/media"
-  local def_dl="$def_cfg/downloads"
+  local def_root="${JARM_DIR:-$HOME/.jarm}"
+  local def_cfg="$def_root"
+  local def_media="$def_root/media"
+  local def_dl="$def_root/downloads"
 
-  prompt_var CONFIG_PATH "Absolute path for CONFIG_PATH (service configs)" "$def_cfg"
+  prompt_var CONFIG_PATH "Absolute path for CONFIG_PATH (base path for configs)" "$def_cfg"
   prompt_var MEDIA_PATH "Absolute path for MEDIA_PATH (media library)" "$def_media"
   prompt_var DOWNLOAD_PATH "Absolute path for DOWNLOAD_PATH (downloads)" "$def_dl"
   prompt_var TZ "Timezone (e.g., Asia/Almaty)" "Asia/Almaty"
@@ -70,7 +71,7 @@ collect_stack_vars() {
 
 ensure_dirs() {
   local dirs=(
-    "$JARM_DIR"
+    "${JARM_DIR:-$HOME/.jarm}"
     "$CONFIG_PATH/configs/qbittorrent"
     "$MEDIA_PATH"
     "$DOWNLOAD_PATH"
