@@ -14,10 +14,12 @@ else
 fi
 REMOTE_BASE="${REMOTE_BASE:-https://raw.githubusercontent.com/alternativniy/jellyfin-armed/main}" # Optionally set to https://raw.githubusercontent.com/<org>/<repo>/<branch>
 # Create a temporary module root that will always be cleaned up
-MODULE_ROOT="$(mktemp -d -t jellyarmored.XXXXXX)"
+MODULE_ROOT="$(mktemp -d -t jellyarmed.XXXXXX)"
 WORK_DIR="$PWD"
 # Optional persistent work dir for user artifacts (final compose, etc.)
 JARM_DIR="${JARM_DIR:-/opt/jarm}"
+# Predefine COMPOSE_FILE so sourced compose.sh doesn't fail; will be overwritten by compose_build_compose
+export COMPOSE_FILE="${JARM_DIR}/docker-compose.yaml"
 cleanup() { rm -rf "$MODULE_ROOT" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
