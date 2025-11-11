@@ -3,7 +3,9 @@ services:
     image: fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     environment:
-      - LOG_LEVEL=debug
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - LOG_LEVEL=error
       - TZ=${TZ}
     ports:
       - 5055:5055

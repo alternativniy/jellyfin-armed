@@ -4,8 +4,8 @@ services:
     container_name: qbittorrent
     environment:
       - WEBUI_PORT=8080
-      - PUID=0
-      - PGID=0
+      - PUID=${PUID}
+      - PGID=${PGID}
       - TZ=${TZ}
     volumes:
       - ${CONFIG_PATH}/configs/qbittorrent:/config

@@ -58,13 +58,13 @@ jellyfin_configure() {
     log "[jellyfin] Detected completion of initial setup. Proceeding."
   fi
 
-  # Prompt for admin credentials using shared prompt_var (always interactive if tty)
-  if [[ -z "${JELLYFIN_ADMIN_USER:-}" ]]; then prompt_var JELLYFIN_ADMIN_USER "Jellyfin admin username" "admin"; fi
-  if [[ -z "${JELLYFIN_ADMIN_PASS:-}" ]]; then prompt_var JELLYFIN_ADMIN_PASS "Jellyfin admin password" "adminadmin"; fi
+  # Prompt for admin credentials (do not persist between runs)
+  prompt_var JELLYFIN_ADMIN_USER "Jellyfin admin username" "admin"
+  prompt_var JELLYFIN_ADMIN_PASS "Jellyfin admin password" "adminadmin"
 
   # Attempt login and obtain token
   local auth
-  auth=$(curl -sS -X POST -H 'Content-Type: application/json' -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "$base_url/emby/Users/authenticatebyname" || true)
+  auth=$(curl -sS -X POST -H 'Content-Type: application/json' -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "$base_url/emby/Users/AuthenticateByName" || true)
   JELLYFIN_TOKEN=$(echo "$auth" | grep -oE '"AccessToken":"[^"]+"' | sed -E 's/.*:"([^"]+)"/\1/' || true)
   if [[ -z "$JELLYFIN_TOKEN" ]]; then
     log "[jellyfin] authentication failed with provided credentials; aborting configuration"
@@ -75,42 +75,7 @@ jellyfin_configure() {
   chmod 600 "${JARM_DIR:-$HOME/.jarm}/jellyfin_token.txt" 2>/dev/null || true
   log "[jellyfin] obtained token and stored"
 
-  # 2b. Configure locale and metadata language
-  if [[ -z "${JELLYFIN_LANG:-}" ]]; then prompt_var JELLYFIN_LANG "Jellyfin language/locale (e.g., en-US, ru-RU)" "en-US"; fi
-  local lang_ui="$JELLYFIN_LANG"
-  local meta_lang country
-  meta_lang="${JELLYFIN_LANG%%-*}"; country="${JELLYFIN_LANG#*-}"; [[ "$meta_lang" == "$country" ]] && country="US"
-  # System configuration: PreferredMetadataLanguage, MetadataCountryCode
-  local syscfg
-  syscfg=$(jf_get "/emby/System/Configuration" || true)
-  if [[ -n "$syscfg" ]]; then
-    local sys_modified
-    sys_modified=$(printf "%s" "$syscfg" \
-      | sed -E "s/\"PreferredMetadataLanguage\":\"[^\"]*\"/\"PreferredMetadataLanguage\":\"$meta_lang\"/" \
-      | sed -E "s/\"MetadataCountryCode\":\"[^\"]*\"/\"MetadataCountryCode\":\"$country\"/")
-    jf_post_json "/emby/System/Configuration" "$sys_modified" >/dev/null 2>&1 || true
-    log "[jellyfin] set metadata language=$meta_lang, country=$country"
-  else
-    log "[jellyfin] could not fetch system configuration for locale"
-  fi
-  # User display language
-  local users_json user_id
-  users_json=$(jf_get "/emby/Users" || true)
-  user_id=$(echo "$users_json" | grep -oE "\{[^}]*\"Name\":\"$JELLYFIN_ADMIN_USER\"[^}]*\"Id\":\"[^\"]+\"" | sed -E 's/.*"Id":"([^"]+)"/\1/' | head -n1 || true)
-  if [[ -n "$user_id" ]]; then
-    local ucfg ucfg_mod
-    ucfg=$(jf_get "/emby/Users/$user_id/Configuration" || true)
-    if [[ -n "$ucfg" ]]; then
-      ucfg_mod=$(printf "%s" "$ucfg" | sed -E "s/\"DisplayLanguage\":\"[^\"]*\"/\"DisplayLanguage\":\"$lang_ui\"/")
-      jf_post_json "/emby/Users/$user_id/Configuration" "$ucfg_mod" >/dev/null 2>&1 || true
-      log "[jellyfin] set user display language to $lang_ui"
-    else
-      log "[jellyfin] could not fetch user configuration for $JELLYFIN_ADMIN_USER"
-    fi
-  else
-    log "[jellyfin] admin user id not found; skip user locale"
-  fi
-  printf '%s\n' "$JELLYFIN_LANG" > "${JARM_DIR:-$HOME/.jarm}/jellyfin_language.txt" 2>/dev/null || true
+  # 2b. Skip locale/language configuration; user completes initial wizard themselves
 
   # 3. Ensure libraries Movies + TV Shows
   local libs

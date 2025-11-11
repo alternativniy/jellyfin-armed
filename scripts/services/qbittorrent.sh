@@ -70,7 +70,7 @@ qbittorrent_change_password() { # change to QB_PASSWORD if differs
 qbittorrent_set_preferences() {
 	[[ -z "${QB_COOKIE_JAR:-}" ]] && qbittorrent_login || true
 	[[ -z "${QB_COOKIE_JAR:-}" ]] && { log "[qbittorrent] cannot set preferences without auth"; return 1; }
-	local base_download="${DOWNLOAD_PATH:-/downloads}"
+	local base_download="/downloads"
 	mkdir -p "$base_download/tv" "$base_download/movies"
 	# Preferences: save path + enable automatic torrent management
 	local prefs_json="{\"save_path\":\"$base_download\",\"auto_tmm_enabled\":true,\"temp_path_enabled\":false}"
@@ -82,20 +82,61 @@ qbittorrent_set_preferences() {
 	log "[qbittorrent] preferences applied (auto management + categories)"
 }
 
+qbittorrent_prompt_credentials() {
+  # Only prompt if we still failed automatic methods and have a TTY
+  if [[ -e /dev/tty && -r /dev/tty ]]; then
+    printf "qBittorrent WebUI available at: http://127.0.0.1:8080\n" > /dev/tty
+    printf "Automatic authentication failed. Please enter credentials to proceed.\n" > /dev/tty
+    printf "Username [admin]: " > /dev/tty; IFS= read -r QB_USERNAME < /dev/tty || true; QB_USERNAME="${QB_USERNAME:-admin}"; export QB_USERNAME
+    printf "Password [adminadmin]: " > /dev/tty; IFS= read -r QB_PASSWORD < /dev/tty || true; QB_PASSWORD="${QB_PASSWORD:-adminadmin}"; export QB_PASSWORD
+  else
+    log "[qbittorrent] Automatic auth failed and no TTY to prompt; set QB_USERNAME/QB_PASSWORD env and re-run config"
+  fi
+}
+
 qbittorrent_configure() {
-	# Try normal login first
-	if ! qbittorrent_login "${QB_USERNAME:-admin}" "${QB_PASSWORD:-adminadmin}"; then
-		log "[qbittorrent] primary login failed; attempting to extract initial password from logs"
+	# Attempt automatic authentication strategies in order:
+	# 1. Existing saved password file
+	local pw_file="${JARM_DIR:-$HOME/.jarm}/qbittorrent_password.txt"
+	if [[ -f "$pw_file" ]]; then
+		QB_PASSWORD="$(cat "$pw_file" 2>/dev/null)"; export QB_PASSWORD
+		qbittorrent_login "${QB_USERNAME:-admin}" "$QB_PASSWORD" || true
+	fi
+
+	# 2. Default credentials (admin/adminadmin)
+	if [[ -z "${QB_COOKIE_JAR:-}" ]]; then
+		qbittorrent_login "${QB_USERNAME:-admin}" "${QB_PASSWORD:-adminadmin}" || true
+	fi
+
+	# 3. Extract initial password from logs and try login
+	if [[ -z "${QB_COOKIE_JAR:-}" ]]; then
+		log "[qbittorrent] trying to extract temporary initial password from logs"
 		qbittorrent_extract_initial_password || true
 		if [[ -n "${QB_INITIAL_PASSWORD:-}" ]]; then
 			qbittorrent_login "${QB_USERNAME:-admin}" "$QB_INITIAL_PASSWORD" || true
+			# If we authenticated using initial password, change to stored or default
 			if [[ -n "${QB_COOKIE_JAR:-}" ]]; then
 				qbittorrent_change_password || true
 			fi
-		else
-			log "[qbittorrent] no initial password found; skipping password change"
 		fi
 	fi
+
+	# 4. If still not authenticated, interactively prompt user once
+	if [[ -z "${QB_COOKIE_JAR:-}" ]]; then
+		qbittorrent_prompt_credentials
+		if [[ -n "${QB_USERNAME:-}" && -n "${QB_PASSWORD:-}" ]]; then
+			qbittorrent_login "$QB_USERNAME" "$QB_PASSWORD" || true
+			if [[ -n "${QB_COOKIE_JAR:-}" ]]; then
+				qbittorrent_change_password || true
+			fi
+		fi
+	fi
+
+	if [[ -z "${QB_COOKIE_JAR:-}" ]]; then
+		log "[qbittorrent] all authentication attempts failed; skipping preference configuration"
+		return 0
+	fi
+
 	# Apply preferences (requires authenticated session)
 	qbittorrent_set_preferences || true
 }

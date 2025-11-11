@@ -47,7 +47,63 @@ prompt_var() { # name label [default]
   export "$name"="$val"
 }
 
+# Persistent prompts storage in JARM_DIR
+JARM_SETTINGS_FILE="${JARM_DIR:-$HOME/.jarm}/settings.env"
+# Only persist these variables
+ALLOWED_PROMPT_VARS=(
+  CONFIG_PATH
+  MEDIA_PATH
+  DOWNLOAD_PATH
+  TZ
+  PUID
+  PGID
+  QB_USERNAME
+  QB_PASSWORD
+)
+
+load_saved_prompts() {
+  local f="$JARM_SETTINGS_FILE"
+  [[ -f "$f" ]] || return 0
+  # Build regex group for allowed keys
+  local keys regex
+  keys=$(printf "|%s" "${ALLOWED_PROMPT_VARS[@]}")
+  regex="^(${keys:1})="
+  local tmp
+  tmp="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmp' 2>/dev/null || true" RETURN
+  # Filter only allowed assignments and normalize line endings
+  grep -E "$regex" "$f" | sed 's/\r$//' > "$tmp" || true
+  # Source into environment
+  set -a
+  # shellcheck disable=SC1090
+  . "$tmp" || true
+  set +a
+}
+
+save_prompts() {
+  local f="$JARM_SETTINGS_FILE"
+  mkdir -p "$(dirname "$f")"
+  : > "$f"
+  local k v
+  for k in "${ALLOWED_PROMPT_VARS[@]}"; do
+    v="${!k-}"
+    # Use %q to shell-escape values safely
+    if [[ -n "$v" ]]; then printf '%s=%q\n' "$k" "$v" >> "$f"; fi
+  done
+  chmod 600 "$f" 2>/dev/null || true
+}
+
+# Ask only if not already set (useful with saved prompts)
+ask_once() { # name label [default]
+  local name="$1"; local label="$2"; local def="${3-}"
+  if [[ -n "${!name-}" ]]; then return 0; fi
+  prompt_var "$name" "$label" "$def"
+}
+
 collect_stack_vars() {
+  # Load previously saved values first
+  load_saved_prompts || true
   # Offer defaults from current env; if .env exists, use values as suggestions
   local env_file="${ENV_FILE:-.env}"
   if [[ -z "${CONFIG_PATH-}" && -f "$env_file" ]]; then CONFIG_PATH=$(grep -E '^CONFIG_PATH=' "$env_file" | sed -E 's/^CONFIG_PATH=//'); fi
@@ -60,18 +116,24 @@ collect_stack_vars() {
   local def_cfg="$def_root"
   local def_media="$def_root/media"
   local def_dl="$def_root/downloads"
+  local def_uid
+  local def_gid
+  def_uid="$(id -u 2>/dev/null || echo 1000)"
+  def_gid="$(id -g 2>/dev/null || echo 1000)"
 
-  prompt_var CONFIG_PATH "Absolute path for CONFIG_PATH (base path for configs)" "$def_cfg"
-  prompt_var MEDIA_PATH "Absolute path for MEDIA_PATH (media library)" "$def_media"
-  prompt_var DOWNLOAD_PATH "Absolute path for DOWNLOAD_PATH (downloads)" "$def_dl"
-  prompt_var TZ "Timezone (e.g., Asia/Almaty)" "Asia/Almaty"
-  # qBittorrent credentials (used for WebUI/API)
-  prompt_var QB_USERNAME "qBittorrent WebUI username" "admin"
-  prompt_var QB_PASSWORD "qBittorrent WebUI password" "adminadmin"
+  ask_once CONFIG_PATH "Absolute path for CONFIG_PATH (base path for configs)" "$def_cfg"
+  ask_once MEDIA_PATH "Absolute path for MEDIA_PATH (media library)" "$def_media"
+  ask_once DOWNLOAD_PATH "Absolute path for DOWNLOAD_PATH (downloads)" "$def_dl"
+  ask_once TZ "Timezone (e.g., Asia/Almaty)" "Asia/Almaty"
+  ask_once PUID "PUID (container user id)" "$def_uid"
+  ask_once PGID "PGID (container group id)" "$def_gid"
 
   export WAIT_TIMEOUT="${WAIT_TIMEOUT:-180}"
   export WAIT_INTERVAL="${WAIT_INTERVAL:-2}"
   export AUTO_CONFIG="${AUTO_CONFIG:-0}"
+
+  # Persist collected values for next runs
+  save_prompts || true
 }
 
 ensure_dirs() {
@@ -98,6 +160,10 @@ ensure_dirs() {
     if [[ ! -d "$d" ]]; then
       log "Creating directory: $d"
       mkdir -p "$d"
+    fi
+    # Try to align ownership with requested PUID/PGID (non-fatal if not permitted)
+    if [[ -n "${PUID:-}" && -n "${PGID:-}" ]]; then
+      chown -R "$PUID:$PGID" "$d" >/dev/null 2>&1 || true
     fi
   done
 }

@@ -54,13 +54,14 @@ sonarr_configure() {
     {"name":"tvCategory","value":"tv"},
     {"name":"recentPriority","value":0},
     {"name":"olderPriority","value":0},
-    {"name":"removeCompleted","value":false},
+    {"name":"sequentialOrder","value":true},
+    {"name":"removeCompleted","value":true},
     {"name":"addPaused","value":false},
     {"name":"useCategory","value":true},
     {"name":"enable","value":true}
   ],
   "enable": true,
-  "removeCompleted": false,
+  "removeCompleted": true,
   "id": 0
 }
 EOF

@@ -7,7 +7,6 @@ services:
       - LOG_HTML=${LOG_HTML:-false}
       - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
       - TZ=${TZ}
-      - LANG=ru_RU
     ports:
       - 8191:8191
     restart: unless-stopped
