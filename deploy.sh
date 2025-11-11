@@ -147,7 +147,6 @@ Commands:
   config    Run post-configuration (Sonarr/Radarr/Prowlarr)
 
 Environment:
-  RUN_NONINTERACTIVE=1  Disable prompts (all required vars must be set)
   AUTO_CONFIG=1         Run post-config right after up
   WAIT_TIMEOUT          Readiness timeout (seconds), default 180
   WAIT_INTERVAL         Poll interval (seconds), default 2
@@ -157,7 +156,7 @@ Environment:
 Examples:
   ./deploy.sh up
   AUTO_CONFIG=1 ./deploy.sh up
-  RUN_NONINTERACTIVE=1 CONFIG_PATH=/mnt/data ... ./deploy.sh up
+    CONFIG_PATH=/mnt/data MEDIA_PATH=/mnt/media DOWNLOAD_PATH=/mnt/downloads ./deploy.sh up
 EOF
 }
 

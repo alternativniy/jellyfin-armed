@@ -24,20 +24,25 @@ pick_compose_cmd() {
 prompt_var() { # name label [default]
   local name="$1"; local label="$2"; local def="${3-}"
   local current="${!name-}"
-  local shown="$current"
+  local shown="$current" val=""
   if [[ -z "$shown" && -n "$def" ]]; then shown="$def"; fi
-  # In non-interactive mode, auto-apply default if provided
-  if [[ "${RUN_NONINTERACTIVE:-0}" == "1" ]]; then
-    if [[ -z "${!name-}" ]]; then
-      if [[ -n "$def" ]]; then export "$name"="$def"; else err "Missing required variable: $name"; exit 1; fi
+  # Try to read from /dev/tty if stdin is not a TTY (e.g., curl | bash)
+  if [[ -e /dev/tty && -r /dev/tty ]]; then
+    if [[ -n "$shown" ]]; then
+      printf "%s [%s]: " "$label" "$shown" > /dev/tty
+      IFS= read -r val < /dev/tty || true
+      val="${val:-$shown}"
+    else
+      printf "%s: " "$label" > /dev/tty
+      IFS= read -r val < /dev/tty || true
     fi
-    return 0
-  fi
-  if [[ -n "$shown" ]]; then
-    read -r -p "$label [$shown]: " val || true
-    val="${val:-$shown}"
   else
-    read -r -p "$label: " val || true
+    # Fallback: no TTY available, use shown/default and inform user
+    if [[ -n "$shown" ]]; then
+      val="$shown"
+    else
+      err "No TTY to prompt for $name and no default provided. Set $name in env or run interactively."; exit 1
+    fi
   fi
   export "$name"="$val"
 }

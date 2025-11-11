@@ -58,9 +58,9 @@ jellyfin_configure() {
     log "[jellyfin] Detected completion of initial setup. Proceeding."
   fi
 
-  # Force-prompt for admin credentials (ignore RUN_NONINTERACTIVE)
-  jellyfin_prompt_force JELLYFIN_ADMIN_USER "Jellyfin admin username" "admin"
-  jellyfin_prompt_force JELLYFIN_ADMIN_PASS "Jellyfin admin password" "adminadmin"
+  # Prompt for admin credentials using shared prompt_var (always interactive if tty)
+  if [[ -z "${JELLYFIN_ADMIN_USER:-}" ]]; then prompt_var JELLYFIN_ADMIN_USER "Jellyfin admin username" "admin"; fi
+  if [[ -z "${JELLYFIN_ADMIN_PASS:-}" ]]; then prompt_var JELLYFIN_ADMIN_PASS "Jellyfin admin password" "adminadmin"; fi
 
   # Attempt login and obtain token
   local auth
@@ -76,10 +76,7 @@ jellyfin_configure() {
   log "[jellyfin] obtained token and stored"
 
   # 2b. Configure locale and metadata language
-  if [[ -z "${JELLYFIN_LANG:-}" ]]; then JELLYFIN_LANG="en-US"; fi
-  if [[ "${RUN_NONINTERACTIVE:-0}" != "1" ]]; then
-    prompt_var JELLYFIN_LANG "Jellyfin language/locale (e.g., en-US, ru-RU)" "en-US"
-  fi
+  if [[ -z "${JELLYFIN_LANG:-}" ]]; then prompt_var JELLYFIN_LANG "Jellyfin language/locale (e.g., en-US, ru-RU)" "en-US"; fi
   local lang_ui="$JELLYFIN_LANG"
   local meta_lang country
   meta_lang="${JELLYFIN_LANG%%-*}"; country="${JELLYFIN_LANG#*-}"; [[ "$meta_lang" == "$country" ]] && country="US"
