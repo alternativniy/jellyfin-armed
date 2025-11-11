@@ -23,6 +23,43 @@ export COMPOSE_FILE="${JARM_DIR}/docker-compose.yaml"
 cleanup() { rm -rf "$MODULE_ROOT" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
+fetch_repo_bundle() {
+    # Try to download the whole repo as a tarball once to speed up subsequent file fetches
+    # Works automatically for REMOTE_BASE in the form:
+    #   https://raw.githubusercontent.com/<owner>/<repo>/<branch>
+    [[ -z "${REMOTE_BASE:-}" ]] && return 1
+    command -v tar >/dev/null 2>&1 || return 1
+    # Parse owner/repo/branch from REMOTE_BASE
+    local base_no_proto="${REMOTE_BASE#*://}"
+    IFS='/' read -r host owner repo branch rest <<<"$base_no_proto"
+    if [[ "$host" != "raw.githubusercontent.com" || -z "$owner" || -z "$repo" || -z "$branch" ]]; then
+        return 1
+    fi
+    local tar_url="https://codeload.github.com/$owner/$repo/tar.gz/refs/heads/$branch"
+    local tar_path="$MODULE_ROOT/bundle.tar.gz"
+    printf "[bootstrap] Downloading bundle %s\n" "$tar_url"
+    if ! curl -fsSL "$tar_url" -o "$tar_path"; then
+        printf "[bootstrap] Bundle download failed, will fallback to per-file fetch\n"
+        return 1
+    fi
+    mkdir -p "$MODULE_ROOT/_bundle"
+    # Determine top-level folder name from tar
+    local top
+    top=$(tar -tzf "$tar_path" 2>/dev/null | head -n1 | cut -d/ -f1)
+    if [[ -z "$top" ]]; then
+        printf "[bootstrap] Could not determine bundle top folder, fallback to per-file\n"
+        return 1
+    fi
+    tar -xzf "$tar_path" -C "$MODULE_ROOT/_bundle" >/dev/null 2>&1 || true
+    if [[ ! -d "$MODULE_ROOT/_bundle/$top" ]]; then
+        printf "[bootstrap] Bundle extract missing expected folder, fallback to per-file\n"
+        return 1
+    fi
+    export BUNDLE_ROOT="$MODULE_ROOT/_bundle/$top"
+    printf "[bootstrap] Bundle extracted to %s\n" "$BUNDLE_ROOT"
+    return 0
+}
+
 ensure_module() {
     # Ensure a module by relative path within the repo, e.g. scripts/lib/common.sh
     local rel="$1"
@@ -32,6 +69,13 @@ ensure_module() {
     if [[ -f "$src_local" ]]; then
         printf "[bootstrap] Copying %s\n" "$rel"
         cp "$src_local" "$target"
+        chmod +x "$target" || true
+        return 0
+    fi
+    # Try to serve from a pre-fetched bundle to avoid many network calls
+    if [[ -n "${BUNDLE_ROOT:-}" && -f "$BUNDLE_ROOT/$rel" ]]; then
+        printf "[bootstrap] From bundle %s\n" "$rel"
+        cp "$BUNDLE_ROOT/$rel" "$target"
         chmod +x "$target" || true
         return 0
     fi
@@ -51,6 +95,8 @@ if ! command -v curl >/dev/null 2>&1; then
     printf "[bootstrap][ERROR] 'curl' is required but not found in PATH\n" >&2
     exit 1
 fi
+
+fetch_repo_bundle || true
 
 ensure_module scripts/lib/common.sh
 ensure_module scripts/lib/compose.sh
