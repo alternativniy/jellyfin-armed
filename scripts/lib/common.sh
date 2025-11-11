@@ -48,7 +48,7 @@ prompt_var() { # name label [default]
 }
 
 # Persistent prompts storage in JARM_DIR
-JARM_SETTINGS_FILE="${JARM_DIR:-$HOME/.jarm}/settings.env"
+JARM_SETTINGS_FILE="${JARM_DIR:-$HOME/.jarm}/.env"
 # Only persist these variables
 ALLOWED_PROMPT_VARS=(
   CONFIG_PATH

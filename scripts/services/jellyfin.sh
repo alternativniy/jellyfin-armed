@@ -10,9 +10,41 @@ jellyfin_wait_ready() { wait_for_http "jellyfin" "http://127.0.0.1:8096" || wait
 
 jellyfin_find_api_key() { :; }
 
-# Internal: perform authenticated request (requires JELLYFIN_TOKEN)
-jf_get() { local path="$1"; curl -sS -H "X-Emby-Token: $JELLYFIN_TOKEN" "http://127.0.0.1:8096$path"; }
-jf_post_json() { local path="$1"; local data="$2"; curl -sS -H "Content-Type: application/json" -H "X-Emby-Token: $JELLYFIN_TOKEN" -d "$data" -X POST "http://127.0.0.1:8096$path"; }
+# Device / headers / cookies helpers for Jellyfin
+jf_ensure_device_id() {
+  local f="${JARM_DIR:-$HOME/.jarm}/jellyfin_device_id.txt"
+  if [[ -z "${JF_DEVICE_ID:-}" ]]; then
+    if [[ -f "$f" ]]; then
+      JF_DEVICE_ID="$(cat "$f" 2>/dev/null)"
+    else
+      if [[ -r /proc/sys/kernel/random/uuid ]]; then
+        JF_DEVICE_ID="$(cat /proc/sys/kernel/random/uuid 2>/dev/null)"
+      else
+        JF_DEVICE_ID="jarm-$(date +%s)-$RANDOM"
+      fi
+      mkdir -p "$(dirname "$f")" 2>/dev/null || true
+      printf '%s\n' "$JF_DEVICE_ID" > "$f" 2>/dev/null || true
+    fi
+  fi
+  export JF_DEVICE_ID
+}
+
+jf_headers() {
+  local base="MediaBrowser Client=JARM, Device=JARM, DeviceId=${JF_DEVICE_ID}, Version=1.0.0"
+  local hdr=( -H "X-Emby-Authorization: $base" )
+  if [[ -n "${JELLYFIN_TOKEN:-}" ]]; then hdr+=( -H "X-Emby-Token: $JELLYFIN_TOKEN" ); fi
+  printf '%s\n' "${hdr[@]}"
+}
+
+jf_get() {
+  local path="$1"; shift || true
+  curl -sS -b "${JF_COOKIE_JAR:-}" $(jf_headers) "$@" "http://127.0.0.1:8096$path"
+}
+
+jf_post_json() {
+  local path="$1"; local data="$2"; shift 2 || true
+  curl -sS -b "${JF_COOKIE_JAR:-}" -H "Content-Type: application/json" $(jf_headers) -d "$data" -X POST "$@" "http://127.0.0.1:8096$path"
+}
 
 jellyfin_configure() {
   # Strategy:
@@ -59,13 +91,19 @@ jellyfin_configure() {
   fi
 
   # Prompt for admin credentials (do not persist between runs)
-  prompt_var JELLYFIN_ADMIN_USER "Jellyfin admin username" "admin"
-  prompt_var JELLYFIN_ADMIN_PASS "Jellyfin admin password" "adminadmin"
+  prompt_var JELLYFIN_ADMIN_USER "Jellyfin admin username" ""
+  prompt_var JELLYFIN_ADMIN_PASS "Jellyfin admin password" ""
 
   # Attempt login and obtain token
   local auth
-  auth=$(curl -sS -X POST -H 'Content-Type: application/json' -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "$base_url/emby/Users/AuthenticateByName" || true)
+  JF_COOKIE_JAR="$MODULE_ROOT/jellyfin_cookies.txt"; rm -f "$JF_COOKIE_JAR" 2>/dev/null || true
+  jf_ensure_device_id
+  auth=$(curl -sS -c "$JF_COOKIE_JAR" -H 'Content-Type: application/json' $(jf_headers) -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "$base_url/Users/authenticatebyname" || true)
   JELLYFIN_TOKEN=$(echo "$auth" | grep -oE '"AccessToken":"[^"]+"' | sed -E 's/.*:"([^"]+)"/\1/' || true)
+  # Ensure SID cookie present (not strictly fatal if missing but improves compatibility)
+  if ! grep -q 'embyserver_' "$JF_COOKIE_JAR" 2>/dev/null && ! grep -q 'SID' "$JF_COOKIE_JAR" 2>/dev/null; then
+    log "[jellyfin] warning: SID cookie not found; some endpoints may fail"
+  fi
   if [[ -z "$JELLYFIN_TOKEN" ]]; then
     log "[jellyfin] authentication failed with provided credentials; aborting configuration"
     return 0
