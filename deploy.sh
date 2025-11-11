@@ -78,7 +78,7 @@ ensure_module() {
     fi
     # Try to serve from a pre-fetched bundle to avoid many network calls
     if [[ -n "${BUNDLE_ROOT:-}" && -f "$BUNDLE_ROOT/$rel" ]]; then
-        printf "[bootstrap] From bundle %s\n" "$rel"
+        #printf "[bootstrap] From bundle %s\n" "$rel"
         cp "$BUNDLE_ROOT/$rel" "$target"
         chmod +x "$target" || true
         return 0
@@ -132,7 +132,7 @@ source "$MODULE_ROOT/scripts/lib/services.sh"
 # shellcheck disable=SC1090
 source "$MODULE_ROOT/scripts/lib/config.sh"
 
-# Compose will be generated at /opt/jarm; set env exports for modules
+# Compose will be generated at $HOME/.jarm; set env exports for modules
 export MODULE_ROOT WORK_DIR JARM_DIR
 
 usage() {
@@ -202,7 +202,7 @@ main() {
             ensure_dirs
             select_services
             services_ensure_dirs
-            if [[ ! -f "${WORK_DIR:-${JARM_DIR:-/opt/jarm}}/found_api_keys.json" ]]; then
+            if [[ ! -f "${WORK_DIR:-${JARM_DIR:-$HOME/.jarm}}/found_api_keys.json" ]]; then
                 scan_api_keys
             fi
             configure_all_services

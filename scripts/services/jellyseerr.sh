@@ -79,8 +79,8 @@ EOF
 
   # 2) Link Jellyfin as media server (if token is available)
   local jf_token=""; local jf_cfg
-  if [[ -f "${JARM_DIR:-/opt/jarm}/jellyfin_token.txt" ]]; then
-    jf_token=$(cat "${JARM_DIR:-/opt/jarm}/jellyfin_token.txt" 2>/dev/null)
+  if [[ -f "${JARM_DIR:-$HOME/.jarm}/jellyfin_token.txt" ]]; then
+    jf_token=$(cat "${JARM_DIR:-$HOME/.jarm}/jellyfin_token.txt" 2>/dev/null)
   fi
   jf_cfg=$(js_get "/settings/jellyfin" || true)
   if [[ "$jf_cfg" != *"hostname"* && -n "$jf_token" ]]; then

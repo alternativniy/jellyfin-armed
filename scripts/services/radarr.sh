@@ -27,8 +27,8 @@ radarr_configure() {
   # Ensure qBittorrent credentials (use stored file or prompt if interactive)
   if [[ -z "${QB_USERNAME:-}" ]]; then QB_USERNAME="admin"; export QB_USERNAME; fi
   if [[ -z "${QB_PASSWORD:-}" ]]; then
-    if [[ -f "${JARM_DIR:-/opt/jarm}/qbittorrent_password.txt" ]]; then
-      QB_PASSWORD="$(cat "${JARM_DIR:-/opt/jarm}/qbittorrent_password.txt" 2>/dev/null)"; export QB_PASSWORD
+    if [[ -f "${JARM_DIR:-$HOME/.jarm}/qbittorrent_password.txt" ]]; then
+      QB_PASSWORD="$(cat "${JARM_DIR:-$HOME/.jarm}/qbittorrent_password.txt" 2>/dev/null)"; export QB_PASSWORD
     elif [[ "${RUN_NONINTERACTIVE:-0}" != "1" ]]; then
       prompt_var QB_USERNAME "qBittorrent WebUI username" "admin"
       prompt_var QB_PASSWORD "qBittorrent WebUI password"

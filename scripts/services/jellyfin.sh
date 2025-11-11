@@ -15,52 +15,64 @@ jf_get() { local path="$1"; curl -sS -H "X-Emby-Token: $JELLYFIN_TOKEN" "http://
 jf_post_json() { local path="$1"; local data="$2"; curl -sS -H "Content-Type: application/json" -H "X-Emby-Token: $JELLYFIN_TOKEN" -d "$data" -X POST "http://127.0.0.1:8096$path"; }
 
 jellyfin_configure() {
-  # Goal: ensure an admin user exists and libraries (Movies, TV Shows) are created.
-  # 1. Determine if system already initialized.
-  local cfg_dir="$CONFIG_PATH/configs/jellyfin"; local users_file="$cfg_dir/data/users/users.json"
-  if [[ -f "$users_file" ]] && grep -q '"Id"' "$users_file"; then
-    log "[jellyfin] users file present — assuming initialized"
+  # Strategy:
+  # 1. If uninitialized, show URL and wait until user completes wizard and creates an account.
+  # 2. Prompt for admin credentials regardless of RUN_NONINTERACTIVE.
+  # 3. Attempt login and obtain token; if success, continue with locale and libraries.
+
+  local cfg_dir="$CONFIG_PATH/configs/jellyfin"
+  local users_file="$cfg_dir/data/users/users.json"
+  local base_url="http://127.0.0.1:8096"
+
+  # Helper: force prompt ignoring RUN_NONINTERACTIVE
+  jellyfin_prompt_force() { # name label default
+    local name="$1"; local label="$2"; local def="$3"; local val
+    if [[ -n "$def" ]]; then
+      read -r -p "$label [$def]: " val || true
+      val="${val:-$def}"
+    else
+      read -r -p "$label: " val || true
+    fi
+    export "$name"="$val"
+  }
+
+  # Detect initialization; if not, guide and wait
+  local initialized=0
+  if [[ -f "$users_file" ]] && grep -q '"Id"' "$users_file" 2>/dev/null; then
+    initialized=1
   else
-    log "[jellyfin] no users.json found — attempting initial admin creation"
-    # Collect admin credentials (prompt if interactive, fallback defaults)
-    if [[ -z "${JELLYFIN_ADMIN_USER:-}" ]]; then JELLYFIN_ADMIN_USER="admin"; fi
-    if [[ -z "${JELLYFIN_ADMIN_PASS:-}" ]]; then JELLYFIN_ADMIN_PASS="adminadmin"; fi
-    if [[ "${RUN_NONINTERACTIVE:-0}" != "1" ]]; then
-      prompt_var JELLYFIN_ADMIN_USER "Jellyfin admin username" "admin"
-      prompt_var JELLYFIN_ADMIN_PASS "Jellyfin admin password" "adminadmin"
-    fi
-    # Jellyfin doesn't offer a simple unauthenticated user creation API once wizard done; attempt wizard endpoints.
-    # Try QuickConnect style: fetch system info to decide stage.
-    local public
-    public=$(curl -sS "http://127.0.0.1:8096/emby/System/Info/Public" || true)
-    if [[ -n "$public" ]]; then
-      # Attempt to create user via /emby/Users/New
-      local new_payload
-      new_payload=$(cat <<EOF
-{
-  "Name": "$JELLYFIN_ADMIN_USER",
-  "Password": "$JELLYFIN_ADMIN_PASS"
-}
-EOF
-)
-      curl -sS -H 'Content-Type: application/json' -d "$new_payload" -X POST "http://127.0.0.1:8096/emby/Users/New" >/dev/null 2>&1 || true
-      log "[jellyfin] attempted admin user creation"
-    fi
+    log "[jellyfin] Initial setup required. Open Jellyfin and create an admin user: $base_url"
+    log "[jellyfin] Waiting for initial setup to complete (Ctrl+C to abort)..."
+    while true; do
+      # Check users.json presence or API flag
+      if [[ -f "$users_file" ]] && grep -q '"Id"' "$users_file" 2>/dev/null; then
+        initialized=1; break
+      fi
+      local public
+      public=$(curl -sS "$base_url/emby/System/Info/Public" 2>/dev/null || true)
+      if printf '%s' "$public" | grep -q '"StartupWizardCompleted":true'; then
+        initialized=1; break
+      fi
+      sleep "${WAIT_INTERVAL:-2}"
+    done
+    log "[jellyfin] Detected completion of initial setup. Proceeding."
   fi
 
-  # 2. Obtain authentication token (login)
-  if [[ -z "${JELLYFIN_ADMIN_USER:-}" ]]; then JELLYFIN_ADMIN_USER="admin"; fi
-  if [[ -z "${JELLYFIN_ADMIN_PASS:-}" ]]; then JELLYFIN_ADMIN_PASS="adminadmin"; fi
+  # Force-prompt for admin credentials (ignore RUN_NONINTERACTIVE)
+  jellyfin_prompt_force JELLYFIN_ADMIN_USER "Jellyfin admin username" "admin"
+  jellyfin_prompt_force JELLYFIN_ADMIN_PASS "Jellyfin admin password" "adminadmin"
+
+  # Attempt login and obtain token
   local auth
-  auth=$(curl -sS -X POST -H 'Content-Type: application/json' -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "http://127.0.0.1:8096/emby/Users/authenticatebyname" || true)
+  auth=$(curl -sS -X POST -H 'Content-Type: application/json' -d "{\"Username\":\"$JELLYFIN_ADMIN_USER\",\"Pw\":\"$JELLYFIN_ADMIN_PASS\"}" "$base_url/emby/Users/authenticatebyname" || true)
   JELLYFIN_TOKEN=$(echo "$auth" | grep -oE '"AccessToken":"[^"]+"' | sed -E 's/.*:"([^"]+)"/\1/' || true)
   if [[ -z "$JELLYFIN_TOKEN" ]]; then
-    log "[jellyfin] authentication failed; cannot configure"
+    log "[jellyfin] authentication failed with provided credentials; aborting configuration"
     return 0
   fi
   export JELLYFIN_TOKEN
-  printf '%s\n' "$JELLYFIN_TOKEN" > "${JARM_DIR:-/opt/jarm}/jellyfin_token.txt" 2>/dev/null || true
-  chmod 600 "${JARM_DIR:-/opt/jarm}/jellyfin_token.txt" 2>/dev/null || true
+  printf '%s\n' "$JELLYFIN_TOKEN" > "${JARM_DIR:-$HOME/.jarm}/jellyfin_token.txt" 2>/dev/null || true
+  chmod 600 "${JARM_DIR:-$HOME/.jarm}/jellyfin_token.txt" 2>/dev/null || true
   log "[jellyfin] obtained token and stored"
 
   # 2b. Configure locale and metadata language
@@ -101,7 +113,7 @@ EOF
   else
     log "[jellyfin] admin user id not found; skip user locale"
   fi
-  printf '%s\n' "$JELLYFIN_LANG" > "${JARM_DIR:-/opt/jarm}/jellyfin_language.txt" 2>/dev/null || true
+  printf '%s\n' "$JELLYFIN_LANG" > "${JARM_DIR:-$HOME/.jarm}/jellyfin_language.txt" 2>/dev/null || true
 
   # 3. Ensure libraries Movies + TV Shows
   local libs

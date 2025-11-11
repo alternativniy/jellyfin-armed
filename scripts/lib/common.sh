@@ -75,6 +75,8 @@ ensure_dirs() {
     "$CONFIG_PATH/configs/qbittorrent"
     "$MEDIA_PATH"
     "$DOWNLOAD_PATH"
+    "$DOWNLOAD_PATH/tv"
+    "$DOWNLOAD_PATH/movies"
     "$CONFIG_PATH/configs/sonarr"
     "$MEDIA_PATH/tv"
     "$CONFIG_PATH/configs/radarr"

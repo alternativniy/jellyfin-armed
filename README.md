@@ -10,7 +10,7 @@ Automated Docker stack for Jellyfin and companion services: qBittorrent, Sonarr,
 
 - Interactive setup (no mandatory `.env`) with safe defaults
 - Preflight checks (Docker, Compose/`docker compose`, curl)
-- Dynamic Compose assembly from per-service fragments into `/opt/jarm/docker-compose.yaml`
+- Dynamic Compose assembly from per-service fragments into `$HOME/./jarm/docker-compose.yaml`
 - One-command lifecycle: pull, up -d, readiness checks, and optional auto-config
 - API key discovery (Sonarr/Radarr/Prowlarr/Jellyseerr) -> saved to `found_api_keys.json`
 - Post-config automation:
@@ -59,7 +59,7 @@ Optional:
 - `RUN_NONINTERACTIVE=1` — no prompts (all required vars must be set)
 - `WAIT_TIMEOUT` — readiness timeout in seconds (default 180)
 - `WAIT_INTERVAL` — readiness poll interval in seconds (default 2)
-- `JARM_DIR` — persistent work dir (default `/opt/jarm`), stores final compose and artifacts (`found_api_keys.json`, tokens, passwords)
+- `JARM_DIR` — persistent work dir (default `$HOME/./jarm`), stores final compose and artifacts (`found_api_keys.json`, tokens, passwords)
 - `COMPOSE_INCLUDE` — comma-separated service names to include (default: qbittorrent,flaresolverr,sonarr,radarr,jellyfin,jellyseerr,prowlarr)
 
 Service-specific (prompted when needed):
@@ -70,7 +70,7 @@ Service-specific (prompted when needed):
 
 ## How it works
 
-1. `deploy.sh` copies/loads modules from the repo (or REMOTE_BASE), assembles per-service Compose fragments into `/opt/jarm/docker-compose.yaml`, then starts the stack.
+1. `deploy.sh` copies/loads modules from the repo (or REMOTE_BASE), assembles per-service Compose fragments into `$HOME/./jarm/docker-compose.yaml`, then starts the stack.
 2. Readiness checks wait for ports/HTTP to be available.
 3. API key discovery scans mounted config paths and writes `found_api_keys.json` into `JARM_DIR`.
 4. Post-config (optional or via `./deploy.sh config`) calls into service modules under `scripts/services/*.sh` to finish setup.
@@ -135,7 +135,7 @@ Guidelines:
 
 - qBittorrent initial password: `docker logs qbittorrent | grep -i password` (script also saves it to `${JARM_DIR}`)
 - Keys missing in `found_api_keys.json`: run `./deploy.sh keys` after containers create configs
-- Compose file location: `/opt/jarm/docker-compose.yaml` (or `${JARM_DIR}/docker-compose.yaml`)
+- Compose file location: `$HOME/./jarm/docker-compose.yaml` (or `${JARM_DIR}/docker-compose.yaml`)
 - Limit services: `COMPOSE_INCLUDE=sonarr,radarr,jellyfin ./deploy.sh up`
 
 ## Security notes

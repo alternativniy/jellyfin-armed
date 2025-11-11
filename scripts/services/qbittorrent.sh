@@ -23,15 +23,31 @@ qbittorrent_login() { # login <user> <pass>
 
 qbittorrent_extract_initial_password() {
 	# Attempt to parse initial/temporary password from container logs
-	local raw
-	raw=$(docker logs qbittorrent 2>&1 | tail -n 200 || true)
-	# Common patterns: 'Web UI: username: admin password: xxxxxx' or 'Generated password: xxxxxx'
-	local pw=""
-	pw=$(echo "$raw" | grep -Eo 'password:?\s+[A-Za-z0-9!@#%^&_+=-]+' | tail -n1 | sed -E 's/.*password:?\s+//' || true)
-	if [[ -n "$pw" ]]; then
+	# Supports multiple message formats from linuxserver/qbittorrent
+	local cname="${QBIT_CONTAINER_NAME:-qbittorrent}"
+	local raw pw=""
+	raw=$(docker logs "$cname" 2>&1 | tail -n 400 || true)
+
+	# Pattern 1 (new): "A temporary password is provided for this session: <PASS>"
+	pw=$(printf '%s\n' "$raw" | sed -nE 's/.*provided for this session:[[:space:]]*([^[:space:]]+).*/\1/p' | tail -n1)
+
+	# Pattern 2: "WebUI ... password ...: <PASS>" (various wordings)
+	if [[ -z "$pw" ]]; then
+		pw=$(printf '%s\n' "$raw" | sed -nE 's/.*[Pp]assword[^:]*:[[:space:]]*([^[:space:]]+).*/\1/p' | tail -n1)
+	fi
+
+	# Pattern 3: "Generated password: <PASS>" or "admin password is: <PASS>"
+	if [[ -z "$pw" ]]; then
+		pw=$(printf '%s\n' "$raw" | sed -nE 's/.*(Generated password|admin password is):[[:space:]]*([^[:space:]]+).*/\2/p' | tail -n1)
+	fi
+
+	# Basic sanity: restrict to printable non-space, 4-128 chars
+	if [[ -n "$pw" && ${#pw} -ge 4 && ${#pw} -le 128 ]]; then
 		log "[qbittorrent] extracted initial password from logs"
-		printf '%s\n' "$pw" > "${JARM_DIR:-/opt/jarm}/qbittorrent_initial_password.txt" 2>/dev/null || true
-		chmod 600 "${JARM_DIR:-/opt/jarm}/qbittorrent_initial_password.txt" 2>/dev/null || true
+		local out="${JARM_DIR:-$HOME/.jarm}/qbittorrent_initial_password.txt"
+		mkdir -p "$(dirname "$out")" 2>/dev/null || true
+		printf '%s\n' "$pw" > "$out" 2>/dev/null || true
+		chmod 600 "$out" 2>/dev/null || true
 		QB_INITIAL_PASSWORD="$pw"; export QB_INITIAL_PASSWORD
 		return 0
 	fi
@@ -46,9 +62,9 @@ qbittorrent_change_password() { # change to QB_PASSWORD if differs
 	local json
 	json="{\"web_ui_password\":\"$new_pw\",\"web_ui_username\":\"$user\"}"
 	curl -sS -b "$QB_COOKIE_JAR" -X POST -d "json=$json" http://127.0.0.1:8080/api/v2/app/setPreferences >/dev/null 2>&1 || true
-	printf '%s\n' "$new_pw" > "${JARM_DIR:-/opt/jarm}/qbittorrent_password.txt" 2>/dev/null || true
-	chmod 600 "${JARM_DIR:-/opt/jarm}/qbittorrent_password.txt" 2>/dev/null || true
-	log "[qbittorrent] password updated and stored at ${JARM_DIR:-/opt/jarm}/qbittorrent_password.txt"
+	printf '%s\n' "$new_pw" > "${JARM_DIR:-$HOME/.jarm}/qbittorrent_password.txt" 2>/dev/null || true
+	chmod 600 "${JARM_DIR:-$HOME/.jarm}/qbittorrent_password.txt" 2>/dev/null || true
+	log "[qbittorrent] password updated and stored at ${JARM_DIR:-$HOME/.jarm}/qbittorrent_password.txt"
 }
 
 qbittorrent_set_preferences() {
