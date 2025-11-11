@@ -44,7 +44,11 @@ ensure_module() {
     exit 1
 }
 
-require_cmd curl
+# Ensure curl is available before attempting remote module downloads
+if ! command -v curl >/dev/null 2>&1; then
+    printf "[bootstrap][ERROR] 'curl' is required but not found in PATH\n" >&2
+    exit 1
+fi
 
 ensure_module scripts/lib/common.sh
 ensure_module scripts/lib/compose.sh
