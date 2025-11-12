@@ -4,14 +4,6 @@ set -euo pipefail
 # Bootstrap launcher: loads modular scripts, collects variables (interactive),
 # and performs stack operations.
 
-# Resolve script root robustly (works for local file or stdin via pipe)
-if [[ -n "${BASH_SOURCE:-}" && -n "${BASH_SOURCE[0]:-}" ]]; then
-    ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null || pwd)"
-elif [[ -n "${0:-}" && "${0}" != "-" ]]; then
-    ROOT_DIR="$(cd "$(dirname "${0}")" 2>/dev/null || pwd)"
-else
-    ROOT_DIR="$PWD"
-fi
 REMOTE_BASE="${REMOTE_BASE:-https://raw.githubusercontent.com/alternativniy/jellyfin-armed/main}" # Optionally set to https://raw.githubusercontent.com/<org>/<repo>/<branch>
 # Create a temporary module root that will always be cleaned up
 MODULE_ROOT="$(mktemp -d -t jellyarmed.XXXXXX)"
@@ -68,7 +60,7 @@ ensure_module() {
     # Ensure a module by relative path within the repo, e.g. scripts/lib/common.sh
     local rel="$1"
     local target="$MODULE_ROOT/$rel"
-    local src_local="$ROOT_DIR/$rel"
+    local src_local="$WORK_DIR/$rel"
     mkdir -p "$(dirname "$target")"
     if [[ -f "$src_local" ]]; then
         printf "[bootstrap] Copying %s\n" "$rel"
@@ -100,7 +92,13 @@ if ! command -v curl >/dev/null 2>&1; then
     exit 1
 fi
 
-fetch_repo_bundle || true
+# Check if we need to fetch modules remotely (local repo structure missing)
+if [[ ! -d "$WORK_DIR/scripts/lib" || ! -d "$WORK_DIR/scripts/services" || ! -d "$WORK_DIR/compose" ]]; then
+    printf "[bootstrap] Local modules not found, will fetch remotely\n"
+    fetch_repo_bundle || true
+else
+    printf "[bootstrap] Local modules found, using local files\n"
+fi
 
 ensure_module scripts/lib/common.sh
 ensure_module scripts/lib/compose.sh

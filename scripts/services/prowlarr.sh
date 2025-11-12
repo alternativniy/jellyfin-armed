@@ -32,10 +32,11 @@ prowlarr_configure() {
   fi
 
   # Read Sonarr/Radarr API keys from keys JSON (if available)
-  local sonarr_key="" radarr_key=""
-  if [[ -n "${OUTPUT_KEYS_JSON:-}" && -f "$OUTPUT_KEYS_JSON" ]]; then
-    sonarr_key=$(grep -oE '"sonarr":\s*\{"apiKey":\s*"[^"]+"' "$OUTPUT_KEYS_JSON" | sed -E 's/.*"apiKey":\s*"([^"]+)"/\1/' || true)
-    radarr_key=$(grep -oE '"radarr":\s*\{"apiKey":\s*"[^"]+"' "$OUTPUT_KEYS_JSON" | sed -E 's/.*"apiKey":\s*"([^"]+)"/\1/' || true)
+  local sonarr_key="" radarr_key="" keys_file
+  keys_file="${OUTPUT_KEYS_FILE}"
+  if [[ -f "$keys_file" ]]; then
+    sonarr_key=$(grep -oE '"sonarr":\s*\{"apiKey":\s*"[^"]+"' "$keys_file" | sed -E 's/.*"apiKey":\s*"([^"]+)"/\1/' || true)
+    radarr_key=$(grep -oE '"radarr":\s*\{"apiKey":\s*"[^"]+"' "$keys_file" | sed -E 's/.*"apiKey":\s*"([^"]+)"/\1/' || true)
   fi
 
   # Helper: add application if missing

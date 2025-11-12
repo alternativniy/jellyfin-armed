@@ -49,6 +49,10 @@ prompt_var() { # name label [default]
 
 # Persistent prompts storage in JARM_DIR
 JARM_SETTINGS_FILE="${JARM_DIR:-$HOME/.jarm}/.env"
+# Global output location for discovered API keys JSON
+: "${OUTPUT_KEYS_JSON:=found_api_keys.json}"
+: "${OUTPUT_KEYS_FILE:=${JARM_DIR:-$HOME/.jarm}/$OUTPUT_KEYS_JSON}"
+export OUTPUT_KEYS_JSON OUTPUT_KEYS_FILE
 # Only persist these variables
 ALLOWED_PROMPT_VARS=(
   CONFIG_PATH
@@ -141,13 +145,13 @@ ensure_dirs() {
     "${JARM_DIR:-$HOME/.jarm}"
     "$CONFIG_PATH/configs/qbittorrent"
     "$MEDIA_PATH"
+    "$MEDIA_PATH/movies"
+    "$MEDIA_PATH/tv"
     "$DOWNLOAD_PATH"
     "$DOWNLOAD_PATH/tv"
     "$DOWNLOAD_PATH/movies"
     "$CONFIG_PATH/configs/sonarr"
-    "$MEDIA_PATH/tv"
     "$CONFIG_PATH/configs/radarr"
-    "$MEDIA_PATH/movies"
     "$CONFIG_PATH/configs/jellyfin"
     "$CONFIG_PATH/jellyfin/cache"
     "$CONFIG_PATH/configs/jellyseerr"

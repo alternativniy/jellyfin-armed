@@ -14,11 +14,11 @@ services:
       - 1900:1900/udp
     volumes:
       - ${MEDIA_PATH}:/media
+      - ${MEDIA_PATH}/tv:/media/tv
+      - ${MEDIA_PATH}/movies:/media/movies
       - ${CONFIG_PATH}/configs/jellyfin:/config
       - ${CONFIG_PATH}/jellyfin/cache:/cache
-      - ${MEDIA_PATH}/tv:/data/tvshows
-      - ${MEDIA_PATH}/movies:/data/movies
-      - ${DOWNLOAD_PATH}:/data/media_downloads
+      - ${DOWNLOAD_PATH}:/media/media_downloads
     devices:
       - /dev/dri:/dev/dri
     restart: unless-stopped

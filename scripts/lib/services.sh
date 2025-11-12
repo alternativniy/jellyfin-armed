@@ -45,7 +45,7 @@ services_wait_readiness() {
   done
 }
 
-# Aggregate: scan API keys, writes JSON file to $OUTPUT_KEYS_JSON
+# Aggregate: scan API keys, writes JSON file to $OUTPUT_KEYS_FILE
 services_scan_api_keys() {
   declare -A keys
   for s in "${SERVICES[@]}"; do
@@ -64,18 +64,18 @@ services_scan_api_keys() {
       if [[ -n "$v" ]]; then printf '  "%s": {"apiKey": "%s"}' "$s" "$v"; else printf '  "%s": {"apiKey": null}' "$s"; fi
     done
     printf '\n}\n'
-  } >"$OUTPUT_KEYS_JSON"
-  log "API keys saved to $OUTPUT_KEYS_JSON"
+  } >"${OUTPUT_KEYS_FILE}"
+  log "API keys saved to ${OUTPUT_KEYS_FILE}"
 }
 
 # Aggregate: configure from keys JSON
 services_configure_from_keys() {
-  if [[ ! -f "$OUTPUT_KEYS_JSON" ]]; then err "Missing $OUTPUT_KEYS_JSON"; return 1; fi
+  if [[ ! -f "$OUTPUT_KEYS_FILE" ]]; then err "Missing $OUTPUT_KEYS_FILE"; return 1; fi
   for s in "${SERVICES[@]}"; do
     local fn="${s}_configure"
     if type -t "$fn" >/dev/null 2>&1; then
       local key
-      key=$(grep -oE '"'"$s"'":\s*\{"apiKey":\s*"[^"]+"' "$OUTPUT_KEYS_JSON" | sed -E 's/.*"apiKey":\s*"([^"]+)"/\1/' || true)
+  key=$(grep -oE '"'"$s"'":\s*\{"apiKey":\s*"[^"]+"' "$OUTPUT_KEYS_FILE" | sed -E 's/.*"apiKey":\s*"([^"]+)"/\1/' || true)
       "$fn" "$key"
     fi
   done

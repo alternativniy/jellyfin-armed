@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORK_DIR="${WORK_DIR:-${JARM_DIR:-$PWD}}"
-OUTPUT_KEYS_JSON="${OUTPUT_KEYS_JSON:-$WORK_DIR/found_api_keys.json}"
+# Keys JSON output location; prefer global from common.sh
+: "${OUTPUT_KEYS_JSON:=found_api_keys.json}"
+: "${OUTPUT_KEYS_FILE:=${JARM_DIR:-$HOME/.jarm}/$OUTPUT_KEYS_JSON}"
 
 http_get_json() { local url="$1"; shift; curl -sS -H 'Accept: application/json' "$@" "$url"; }
 http_post_json() { local url="$1"; local data="$2"; shift 2; curl -sS -H 'Content-Type: application/json' -H 'Accept: application/json' "$@" -d "$data" -X POST "$url"; }
@@ -28,12 +29,12 @@ scan_api_keys() {
       [[ -n "${k:-}" ]] && keys[$svc]="$k"
     fi
   done
-  { printf '{\n'; local first=1; for svc in qbittorrent flaresolverr sonarr radarr jellyfin jellyseerr prowlarr; do local val="${keys[$svc]:-}"; (( first )) && first=0 || printf ',\n'; if [[ -n "$val" ]]; then printf '  "%s": {"apiKey": "%s"}' "$svc" "$val"; else printf '  "%s": {"apiKey": null}' "$svc"; fi; done; printf '\n}\n'; } >"$OUTPUT_KEYS_JSON"
-  log "API keys saved to $OUTPUT_KEYS_JSON"
+  { printf '{\n'; local first=1; for svc in qbittorrent flaresolverr sonarr radarr jellyfin jellyseerr prowlarr; do local val="${keys[$svc]:-}"; (( first )) && first=0 || printf ',\n'; if [[ -n "$val" ]]; then printf '  "%s": {"apiKey": "%s"}' "$svc" "$val"; else printf '  "%s": {"apiKey": null}' "$svc"; fi; done; printf '\n}\n'; } >"$OUTPUT_KEYS_FILE"
+  log "API keys saved to $OUTPUT_KEYS_FILE"
 }
 
 configure_all_services() {
-  if [[ ! -f "$OUTPUT_KEYS_JSON" ]]; then log "Missing $OUTPUT_KEYS_JSON — skipping configure"; return 0; fi
+  if [[ ! -f "$OUTPUT_KEYS_FILE" ]]; then log "Missing $OUTPUT_KEYS_FILE — skipping configure"; return 0; fi
   # Delegate to per-service configurators via services.sh orchestrator
   services_configure_from_keys
   log "Basic configuration complete"

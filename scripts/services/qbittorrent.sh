@@ -9,15 +9,17 @@ qbittorrent_find_api_key() { :; }
 
 qbittorrent_login() { # login <user> <pass>
 	local user="${1:-${QB_USERNAME:-admin}}" pass="${2:-${QB_PASSWORD:-adminadmin}}"
-	QB_COOKIE_JAR="$MODULE_ROOT/qbittorrent_cookies.txt"
-	rm -f "$QB_COOKIE_JAR" 2>/dev/null || true
+	local jar="${JARM_DIR:-$HOME/.jarm}/qbittorrent_cookies.txt"
+	# Reset previous auth state and cookie file before attempting login
+	unset -v QB_COOKIE_JAR 2>/dev/null || true
+	rm -f "$jar" 2>/dev/null || true
 	local resp
-	resp=$(curl -sS -c "$QB_COOKIE_JAR" -X POST -d "username=$user&password=$pass" http://127.0.0.1:8080/api/v2/auth/login || true)
-	if [[ "$resp" != *"Ok."* ]] || ! grep -q SID "$QB_COOKIE_JAR" 2>/dev/null; then
+	resp=$(curl -sS -c "$jar" -X POST -d "username=$user&password=$pass" http://127.0.0.1:8080/api/v2/auth/login || true)
+	if [[ "$resp" != *"Ok."* ]] || ! grep -q SID "$jar" 2>/dev/null; then
 		log "[qbittorrent] login failed for user '$user'"
 		return 1
 	fi
-	export QB_COOKIE_JAR
+	QB_COOKIE_JAR="$jar"; export QB_COOKIE_JAR
 	log "[qbittorrent] authenticated as $user"
 }
 
